@@ -6,8 +6,8 @@ Plugin URI:			https://kanbanwp.com/addons/gravityforms/
 Description:		Use Gravity Forms forms to interact with your Kanban boards.
 Requires at least:	4.0
 Tested up to:		4.6.1
-Version:			0.0.1
-Release Date:		October 6, 2018
+Version:			0.0.2
+Release Date:		November 1, 2016
 Author:				Gelform Inc
 Author URI:			http://gelwp.com
 License:			GPLv2 or later
