@@ -34,12 +34,13 @@ Domain Path: 		/languages/
 
 
 // Exit if accessed directly
-if ( !defined( 'ABSPATH' ) ) exit;
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
 
 
 
-class Kanban_Gravity_Forms
-{
+class Kanban_Gravity_Forms {
 	static $slug = '';
 	static $friendlyname = '';
 	static $plugin_basename = '';
@@ -53,9 +54,9 @@ class Kanban_Gravity_Forms
 
 
 	static function init() {
-		self::$slug = basename( __FILE__, '.php' );
+		self::$slug            = basename( __FILE__, '.php' );
 		self::$plugin_basename = plugin_basename( __FILE__ );
-		self::$friendlyname = 'Kanban + Gravity Forms';
+		self::$friendlyname    = 'Kanban + Gravity Forms';
 
 
 
@@ -63,14 +64,16 @@ class Kanban_Gravity_Forms
 		add_action( 'admin_init', array( __CLASS__, 'check_for_core' ) );
 
 		// just in case
-		if ( !self::_is_parent_loaded() ) return;
-
-		if ( !class_exists( 'GFAPI' ) ) {
-			deactivate_plugins( plugin_basename( __FILE__ ) );
-			add_action( 'admin_notices', array( __CLASS__, 'gf_admin_notice' ) );
-
+		if ( ! self::_is_parent_loaded() ) {
 			return;
 		}
+
+//		if ( !class_exists( 'GFAPI' ) ) {
+//			deactivate_plugins( plugin_basename( __FILE__ ) );
+//			add_action( 'admin_notices', array( __CLASS__, 'gf_admin_notice' ) );
+//
+//			return;
+//		}
 
 
 
@@ -107,26 +110,31 @@ class Kanban_Gravity_Forms
 
 
 	static function add_admin_page() {
-		$forms = GFAPI::get_forms();
+
+		$forms = array();
+
+		if ( class_exists( 'GFAPI' ) ) {
+			$forms = GFAPI::get_forms();
+		}
 
 		$boards = Kanban_Board::get_all();
 
 		foreach ( $boards as $board_id => &$board ) {
-			$board->projects = Kanban_Project::get_all( $board_id );
-			$board->statuses = Kanban_Status::get_all( $board_id );
+			$board->projects  = Kanban_Project::get_all( $board_id );
+			$board->statuses  = Kanban_Status::get_all( $board_id );
 			$board->estimates = Kanban_Estimate::get_all( $board_id );
-			$board->users = Kanban_User::get_allowed_users( $board_id );
+			$board->users     = Kanban_User::get_allowed_users( $board_id );
 		}
 
 
 
 		$table_columns = array(
-			'title' => 'Title',
-			'user_id_author' => 'Task author',
+			'title'            => 'Title',
+			'user_id_author'   => 'Task author',
 			'user_id_assigned' => 'Assigned to user',
-			'status_id' => 'Status',
-			'estimate_id' => 'Estimate',
-			'project_id' => 'Project'
+			'status_id'        => 'Status',
+			'estimate_id'      => 'Estimate',
+			'project_id'       => 'Project'
 		);
 
 
@@ -141,13 +149,24 @@ class Kanban_Gravity_Forms
 
 	static function save_settings() {
 
-		if ( !is_admin() || $_SERVER[ 'REQUEST_METHOD' ] != 'POST' || !isset( $_POST[ self::$slug . '-nonce' ] ) ) return;
+		if ( ! is_admin() || $_SERVER[ 'REQUEST_METHOD' ] != 'POST' || ! isset( $_POST[ self::$slug . '-nonce' ] ) ) {
+			return;
+		}
 
-		if ( !wp_verify_nonce( $_POST[ self::$slug . '-nonce' ], self::$slug ) ) return;
+		if ( ! wp_verify_nonce( $_POST[ self::$slug . '-nonce' ], self::$slug ) ) {
+			return;
+		}
 
 		Kanban_Option::update_option( self::$slug, $_POST[ 'forms' ] );
 
-		wp_redirect( $_POST[ '_wp_http_referer' ] );
+		wp_redirect(
+			add_query_arg(
+				array(
+					'notice' => __( 'Saved!', 'kanban' )
+				),
+				sanitize_text_field( wp_unslash( $_POST[ '_wp_http_referer' ] ) )
+			)
+		);
 		exit;
 	}
 
@@ -159,20 +178,22 @@ class Kanban_Gravity_Forms
 
 		$form_id = $entry[ 'form_id' ];
 
-		if ( !isset( $saved[ $form_id ] ) ) return FALSE;
+		if ( ! isset( $saved[ $form_id ] ) ) {
+			return false;
+		}
 
 		$table_columns = Kanban_Task::table_columns();
-		$task_data = array_fill_keys( array_keys( $table_columns ), '' );
+		$task_data     = array_fill_keys( array_keys( $table_columns ), '' );
 
 
 		$board_id = $saved[ $form_id ][ 'board' ];
 
-		$task_data[ 'created_dt_gmt' ] = Kanban_Utils::mysql_now_gmt();
-		$task_data[ 'modified_dt_gmt' ] = Kanban_Utils::mysql_now_gmt();
+		$task_data[ 'created_dt_gmt' ]   = Kanban_Utils::mysql_now_gmt();
+		$task_data[ 'modified_dt_gmt' ]  = Kanban_Utils::mysql_now_gmt();
 		$task_data[ 'modified_user_id' ] = 0; // get_current_user_id();
-		$task_data[ 'user_id_author' ] = get_current_user_id();
-		$task_data[ 'is_active' ] = 1;
-		$task_data[ 'board_id' ] = $board_id;
+		$task_data[ 'user_id_author' ]   = get_current_user_id();
+		$task_data[ 'is_active' ]        = 1;
+		$task_data[ 'board_id' ]         = $board_id;
 
 
 
@@ -183,7 +204,7 @@ class Kanban_Gravity_Forms
 				continue;
 			}
 
-			$task_data[ $task_field['table_column'] ] = $entry[ $field_id ];
+			$task_data[ $task_field[ 'table_column' ] ] = $entry[ $field_id ];
 		}
 
 		//Set to the first status if empty.
@@ -205,6 +226,7 @@ class Kanban_Gravity_Forms
 	 * @link https://www.gravityhelp.com/documentation/article/dynamically-populating-drop-down-fields/
 	 *
 	 * @param $form
+	 *
 	 * @return object
 	 */
 	static function populate_form_selects( $form ) {
@@ -214,20 +236,24 @@ class Kanban_Gravity_Forms
 		$form_id = $form[ 'id' ];
 
 
-		if ( !isset( $saved[ $form_id ] ) ) return $form;
+		if ( ! isset( $saved[ $form_id ] ) ) {
+			return $form;
+		}
 
 		$board_id = $saved[ $form_id ][ 'board' ];
 
 		$estimates = array();
-		$statuses = array();
-		$users = array();
+		$statuses  = array();
+		$users     = array();
 
 		foreach ( $saved[ $form_id ] as $field_id => $task_field ) {
 
-			if ( $field_id == 'board' ) continue;
+			if ( $field_id == 'board' ) {
+				continue;
+			}
 
-			if ( !isset($task_field['defaultValue']) ) {
-				$task_field['defaultValue'] = NULL;
+			if ( ! isset( $task_field[ 'defaultValue' ] ) ) {
+				$task_field[ 'defaultValue' ] = null;
 			}
 
 			switch ( $task_field[ 'table_column' ] ) {
@@ -238,11 +264,13 @@ class Kanban_Gravity_Forms
 					}
 
 					foreach ( $form[ 'fields' ] as &$field ) {
-						if ( $field->id != $field_id ) continue;
+						if ( $field->id != $field_id ) {
+							continue;
+						}
 
 						switch ( $field->type ) {
 							case 'hidden':
-								$field->defaultValue = $task_field['defaultValue'];
+								$field->defaultValue = $task_field[ 'defaultValue' ];
 
 								break;
 
@@ -269,11 +297,13 @@ class Kanban_Gravity_Forms
 					}
 
 					foreach ( $form[ 'fields' ] as &$field ) {
-						if ( $field->id != $field_id ) continue;
+						if ( $field->id != $field_id ) {
+							continue;
+						}
 
 						switch ( $field->type ) {
 							case 'hidden':
-								$field->defaultValue = $task_field['defaultValue'];
+								$field->defaultValue = $task_field[ 'defaultValue' ];
 
 								break;
 
@@ -300,11 +330,13 @@ class Kanban_Gravity_Forms
 					}
 
 					foreach ( $form[ 'fields' ] as &$field ) {
-						if ( $field->id != $field_id ) continue;
+						if ( $field->id != $field_id ) {
+							continue;
+						}
 
 						switch ( $field->type ) {
 							case 'hidden':
-								$field->defaultValue = $task_field['defaultValue'];
+								$field->defaultValue = $task_field[ 'defaultValue' ];
 
 								break;
 
@@ -332,11 +364,13 @@ class Kanban_Gravity_Forms
 					}
 
 					foreach ( $form[ 'fields' ] as &$field ) {
-						if ( $field->id != $field_id ) continue;
+						if ( $field->id != $field_id ) {
+							continue;
+						}
 
 						switch ( $field->type ) {
 							case 'hidden':
-								$field->defaultValue = $task_field['defaultValue'];
+								$field->defaultValue = $task_field[ 'defaultValue' ];
 
 								break;
 
@@ -370,7 +404,7 @@ class Kanban_Gravity_Forms
 
 
 	static function notify_php_version() {
-		if ( !is_admin() ) {
+		if ( ! is_admin() ) {
 			return;
 		}
 		?>
@@ -391,7 +425,7 @@ class Kanban_Gravity_Forms
 
 
 	static function check_for_core() {
-		if ( !self::_is_parent_loaded() ) {
+		if ( ! self::_is_parent_loaded() ) {
 			deactivate_plugins( plugin_basename( __FILE__ ) );
 
 			add_action( 'admin_notices', array( __CLASS__, 'admin_notice' ) );
@@ -402,7 +436,7 @@ class Kanban_Gravity_Forms
 
 
 	static function admin_notice() {
-		if ( !is_admin() ) {
+		if ( ! is_admin() ) {
 			return;
 		}
 		?>
@@ -410,7 +444,7 @@ class Kanban_Gravity_Forms
 			<p>
 				<?php
 				echo sprintf(
-					__('Whoops! This plugin %s requires the Kanban for WordPress plugin.
+					__( 'Whoops! This plugin %s requires the Kanban for WordPress plugin.
 	            		Please download it here: <a href="https://wordpress.org/plugins/kanban/" target="_blank">https://wordpress.org/plugins/kanban/</a>.'
 					),
 					self::$friendlyname
@@ -424,7 +458,7 @@ class Kanban_Gravity_Forms
 
 
 	static function gf_admin_notice() {
-		if ( !is_admin() ) {
+		if ( ! is_admin() ) {
 			return;
 		}
 		?>
@@ -432,7 +466,7 @@ class Kanban_Gravity_Forms
 			<p>
 				<?php
 				echo sprintf(
-					__('Whoops! This plugin %s requires the Gravity Forms plugin.
+					__( 'Whoops! This plugin %s requires the Gravity Forms plugin.
 	            		Please make sure it is installed and activated.'
 					),
 					self::$friendlyname

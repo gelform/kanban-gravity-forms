@@ -3,6 +3,27 @@
 		Kanban + Gravity Forms
 	</h1>
 
+	<?php if ( !class_exists( 'GFAPI' ) ) : ?>
+		<div class="notice notice-error">
+			<p>
+				<?php echo sprintf(
+					__('Please install and activate %s.', 'kanban'),
+					'<a href="https://gravityforms.com" target="_blank">Gravity Forms</a>'
+				)
+				?>
+			</p>
+		</div>
+	<?php endif ?>
+
+	<?php if ( isset($_GET['notice']) ) : ?>
+	<div class="updated">
+		<p><?php echo $_GET['notice'] ?></p>
+	</div>
+	<?php endif // notice ?>
+
+
+
+	<?php if ( class_exists( 'GFAPI' ) ) : ?>
 	<p>
 		<?php echo __('Choose a Gravity Form form to edit', 'kanban') ?>:
 		<select id="select-gform" autocomplete="off">
@@ -18,7 +39,7 @@
 
 
 	<hr>
-
+	<?php endif ?>
 
 
 	<form action="" method="post">
@@ -39,6 +60,7 @@
 				<p>
 					1.
 					<?php echo __('Choose a board to sync with', 'kanban') ?>:
+					<?php if ( count($boards) > 1 ) : ?>
 					<select name="forms[<?php echo $form[ 'id' ] ?>][board]" class="board_id" autocomplete="off">
 						<option value="">-- <?php echo __('Choose a board', 'kanban') ?> --</option>
 						<?php foreach ( $boards as $board ) : ?>
@@ -48,6 +70,10 @@
 							</option>
 						<?php endforeach; // $forms ?>
 					</select>
+					<?php else : $board = reset($boards) ?>
+						<input name="forms[<?php echo $form[ 'id' ] ?>][board]" type="hidden" value="<?php echo $board->id ?>" class="board_id">
+						<input type="text" value="<?php echo esc_attr($board->title) ?>" readonly>
+					<?php endif ?>
 				</p>
 
 				<p>
@@ -101,8 +127,9 @@
 		<?php endforeach; // $forms ?>
 
 
-
+		<?php if ( class_exists( 'GFAPI' ) ) : ?>
 		<?php submit_button( __('Save your settings', 'kanban') ); ?>
+		<?php endif ?>
 	</form>
 
 	<div style="display: none">
@@ -183,6 +210,7 @@
 		$( '.table_column' ).on(
 			'change',
 			function () {
+				console.log('test');
 				var $select = $( this );
 				var defaultValue = $select.attr( 'data-defaultValue' );
 				var $defaultValue = $( '[name="' + defaultValue + '"]' );
@@ -191,7 +219,7 @@
 
 				var field = $select.val();
 				var board_id = $board_id.val();
-
+				console.log('#' + field + board_id);
 				var $template = $( '#' + field + board_id );
 
 				if ( $template.length == 0 ) {
