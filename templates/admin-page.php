@@ -8,7 +8,7 @@
 			<p>
 				<?php echo sprintf(
 					__('Please install and activate %s.', 'kanban'),
-					'<a href="https://gravityforms.com" target="_blank">Gravity Forms</a>'
+					'<a href="http://gravityforms.com" target="_blank">Gravity Forms</a>'
 				)
 				?>
 			</p>

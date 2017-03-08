@@ -5,9 +5,9 @@ Plugin Name:		Kanban + Gravity Forms
 Plugin URI:			https://kanbanwp.com/addons/gravityforms/
 Description:		Use Gravity Forms forms to interact with your Kanban boards.
 Requires at least:	4.0
-Tested up to:		4.6.1
-Version:			0.0.2
-Release Date:		November 1, 2016
+Tested up to:		4.7.3
+Version:			0.0.3
+Release Date:		March 7, 2017
 Author:				Gelform Inc
 Author URI:			http://gelwp.com
 License:			GPLv2 or later
@@ -44,6 +44,7 @@ class Kanban_Gravity_Forms {
 	static $slug = '';
 	static $friendlyname = '';
 	static $plugin_basename = '';
+	static $plugin_data;
 
 
 
@@ -54,37 +55,39 @@ class Kanban_Gravity_Forms {
 
 
 	static function init() {
-		self::$slug            = basename( __FILE__, '.php' );
+		self::$slug = basename( __FILE__, '.php' );
 		self::$plugin_basename = plugin_basename( __FILE__ );
-		self::$friendlyname    = 'Kanban + Gravity Forms';
+		self::$friendlyname = trim( str_replace( array( 'Kanban', '_' ), ' ', __CLASS__ ) );
 
 
 
-		register_activation_hook( __FILE__, array( __CLASS__, 'check_for_core' ) );
-		add_action( 'admin_init', array( __CLASS__, 'check_for_core' ) );
-
-		// just in case
-		if ( ! self::_is_parent_loaded() ) {
-			return;
+		if ( !function_exists( 'get_plugin_data' ) ) {
+			require_once( ABSPATH . 'wp-admin/includes/plugin.php' );
 		}
 
-//		if ( !class_exists( 'GFAPI' ) ) {
-//			deactivate_plugins( plugin_basename( __FILE__ ) );
-//			add_action( 'admin_notices', array( __CLASS__, 'gf_admin_notice' ) );
-//
-//			return;
-//		}
+		self::$plugin_data = get_plugin_data( __FILE__ );
 
 
 
-		add_action( 'gform_post_submission', array( __CLASS__, 'on_post_submission' ), 10, 2 );
+		$is_core = self::check_for_core();
+		if ( !$is_core ) return false;
+
+//		self::check_for_updates();
+
+
+
+//		add_filter(
+//			'kanban_option_get_defaults_return',
+//			array(__CLASS__, 'add_options_defaults')
+//		);
 
 
 		add_action( 'init', array( __CLASS__, 'save_settings' ) );
 
-
 		// add tab to settings page
 		add_action( 'admin_menu', array( __CLASS__, 'admin_menu' ), 10 );
+
+		add_action( 'gform_post_submission', array( __CLASS__, 'on_post_submission' ), 10, 2 );
 
 
 
@@ -397,14 +400,47 @@ class Kanban_Gravity_Forms {
 
 
 
+	/**
+	 * Functions to do on single blog activation, like remove db option.
+	 */
+//	static function on_deactivation() {
+//	}
+
+
+
 //	static function add_options_defaults( $defaults ) {
 //		return array_merge( $defaults, self::$options );
 //	}
 
 
 
-	static function notify_php_version() {
-		if ( ! is_admin() ) {
+	static function check_for_core() {
+		if ( class_exists( 'Kanban' ) ) {
+			return TRUE;
+		}
+
+		if ( ! function_exists( 'is_plugin_active_for_network' ) ) {
+			require_once( ABSPATH . '/wp-admin/includes/plugin.php' );
+		}
+
+		if ( is_plugin_active_for_network( self::$plugin_basename ) ) {
+			add_action( 'network_admin_notices',  array( __CLASS__, 'admin_deactivate_notice' ) );
+		}
+		else {
+			add_action( 'admin_notices', array( __CLASS__, 'admin_deactivate_notice' ) );
+		}
+
+
+
+		deactivate_plugins( self::$plugin_basename );
+
+		return FALSE;
+	}
+
+
+
+	static function admin_deactivate_notice() {
+		if ( !is_admin() ) {
 			return;
 		}
 		?>
@@ -412,40 +448,8 @@ class Kanban_Gravity_Forms {
 			<p>
 				<?php
 				echo sprintf(
-					Kanban::get_instance()->settings->admin_notice,
-					Kanban::get_instance()->settings->pretty_name,
-					PHP_VERSION
-				);
-				?>
-			</p>
-		</div>
-		<?php
-	}
-
-
-
-	static function check_for_core() {
-		if ( ! self::_is_parent_loaded() ) {
-			deactivate_plugins( plugin_basename( __FILE__ ) );
-
-			add_action( 'admin_notices', array( __CLASS__, 'admin_notice' ) );
-
-		}
-	}
-
-
-
-	static function admin_notice() {
-		if ( ! is_admin() ) {
-			return;
-		}
-		?>
-		<div class="notice notice-error">
-			<p>
-				<?php
-				echo sprintf(
-					__( 'Whoops! This plugin %s requires the Kanban for WordPress plugin.
-	            		Please download it here: <a href="https://wordpress.org/plugins/kanban/" target="_blank">https://wordpress.org/plugins/kanban/</a>.'
+					__('Whoops! This plugin %s requires the <a href="https://wordpress.org/plugins/kanban/" target="_blank">Kanban for WordPress</a> plugin.
+	            		Please make sure it\'s installed and activated.'
 					),
 					self::$friendlyname
 				);
@@ -454,66 +458,15 @@ class Kanban_Gravity_Forms {
 		</div>
 		<?php
 	}
-
-
-
-	static function gf_admin_notice() {
-		if ( ! is_admin() ) {
-			return;
-		}
-		?>
-		<div class="notice notice-error">
-			<p>
-				<?php
-				echo sprintf(
-					__( 'Whoops! This plugin %s requires the Gravity Forms plugin.
-	            		Please make sure it is installed and activated.'
-					),
-					self::$friendlyname
-				);
-				?>
-			</p>
-		</div>
-		<?php
-	}
-
-
-
-	static function _is_parent_loaded() {
-		return class_exists( 'Kanban' );
-	}
-
-
-
-	static function _is_parent_activated() {
-		$active_plugins_basenames = get_option( 'active_plugins' );
-		foreach ( $active_plugins_basenames as $plugin_basename ) {
-			if ( false !== strpos( $plugin_basename, '/kanban.php' ) ) {
-				return true;
-			}
-		}
-
-		return false;
-	}
-
 
 }
 
 
 
-function kanban_gravityforms_addon() {
+function Kanban_Gravity_Forms() {
 	Kanban_Gravity_Forms::init();
 }
 
 
 
-if ( Kanban_Gravity_Forms::_is_parent_loaded() ) {
-	// If parent plugin already included, init add-on.
-	kanban_gravityforms_addon();
-} else if ( Kanban_Gravity_Forms::_is_parent_activated() ) {
-	// Init add-on only after the parent plugins is loaded.
-	add_action( 'kanban_loaded', 'kanban_gravityforms_addon' );
-} else {
-	// Even though the parent plugin is not activated, execute add-on for activation / uninstall hooks.
-	kanban_gravityforms_addon();
-}
+add_action( 'plugins_loaded', 'Kanban_Gravity_Forms', 20, 0 );
