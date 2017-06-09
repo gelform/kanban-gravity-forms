@@ -5,8 +5,8 @@ Plugin Name:		Kanban + Gravity Forms
 Plugin URI:			https://kanbanwp.com/addons/gravityforms/
 Description:		Use Gravity Forms forms to interact with your Kanban boards.
 Requires at least:	4.0
-Tested up to:		4.7.3
-Version:			0.0.3
+Tested up to:		4.8.1
+Version:			0.0.4
 Release Date:		March 7, 2017
 Author:				Gelform Inc
 Author URI:			http://gelwp.com
@@ -46,6 +46,14 @@ class Kanban_Gravity_Forms {
 	static $plugin_basename = '';
 	static $plugin_data;
 
+	static $task_fields = array(
+		'title'            => 'Title',
+		'user_id_author'   => 'Task author',
+		'user_id_assigned' => 'Assigned to user',
+		'status_id'        => 'Status',
+		'estimate_id'      => 'Estimate',
+		'project_id'       => 'Project'
+	);
 
 
 //	static $options = array(
@@ -68,11 +76,20 @@ class Kanban_Gravity_Forms {
 		self::$plugin_data = get_plugin_data( __FILE__ );
 
 
-
 		$is_core = self::check_for_core();
-		if ( !$is_core ) return false;
+		if ( ! $is_core ) {
+			return false;
+		}
 
-//		self::check_for_updates();
+		add_action(
+			sprintf(
+				'%s_updates',
+				self::$slug
+			),
+			array( __CLASS__, 'do_updates' )
+		);
+
+		self::check_for_updates();
 
 
 
@@ -131,19 +148,22 @@ class Kanban_Gravity_Forms {
 
 
 
-		$table_columns = array(
-			'title'            => 'Title',
-			'user_id_author'   => 'Task author',
-			'user_id_assigned' => 'Assigned to user',
-			'status_id'        => 'Status',
-			'estimate_id'      => 'Estimate',
-			'project_id'       => 'Project'
-		);
-
+		$table_columns = self::$task_fields;
 
 
 		// Previously saved data.
-		$saved = Kanban_Option::get_option( self::$slug );
+		$saved = array();
+		if ( ! empty( $forms ) ) {
+			foreach ( $forms as $form ) {
+
+				$saved[ $form['id'] ] = Kanban_Option::get_option( sprintf(
+						'%s-%d',
+						self::$slug,
+						$form['id']
+					)
+				);
+			}
+		}
 
 		include plugin_dir_path( __FILE__ ) . 'templates/admin-page.php';
 	}
@@ -160,12 +180,38 @@ class Kanban_Gravity_Forms {
 			return;
 		}
 
-		Kanban_Option::update_option( self::$slug, $_POST[ 'forms' ] );
+
+		foreach ( $_POST[ 'forms' ] as $form_id => $form ) {
+
+			$form_data = array();
+
+			foreach ( $form as $field_id => $field_data ) {
+				if ( $field_id == 'board' ) {
+					$form_data['board'] = intval( $field_data );
+					continue;
+				}
+
+				if ( !isset($field_data['table_column']) || !isset(self::$task_fields[$field_data['table_column']]) ) continue;
+
+				$form_data[$field_id] = $field_data;
+			}
+
+			Kanban_Option::update_option(
+				sprintf(
+					'%s-%d',
+					self::$slug,
+					$form_id
+				),
+				$form_data
+			);
+		}
+
+
 
 		wp_redirect(
 			add_query_arg(
 				array(
-					'notice' => __( 'Saved!', 'kanban' )
+					'message' => __( 'Saved!', 'kanban' )
 				),
 				sanitize_text_field( wp_unslash( $_POST[ '_wp_http_referer' ] ) )
 			)
@@ -177,11 +223,18 @@ class Kanban_Gravity_Forms {
 
 	static function on_post_submission( $entry, $form ) {
 
-		$saved = Kanban_Option::get_option( self::$slug );
 
 		$form_id = $entry[ 'form_id' ];
 
-		if ( ! isset( $saved[ $form_id ] ) ) {
+		$saved = Kanban_Option::get_option(
+			sprintf(
+				'%s-%d',
+				self::$slug,
+				$form_id
+			)
+		);
+
+		if ( empty($saved) ) {
 			return false;
 		}
 
@@ -189,7 +242,7 @@ class Kanban_Gravity_Forms {
 		$task_data     = array_fill_keys( array_keys( $table_columns ), '' );
 
 
-		$board_id = $saved[ $form_id ][ 'board' ];
+		$board_id = $saved[ 'board' ];
 
 		$task_data[ 'created_dt_gmt' ]   = Kanban_Utils::mysql_now_gmt();
 		$task_data[ 'modified_dt_gmt' ]  = Kanban_Utils::mysql_now_gmt();
@@ -200,7 +253,7 @@ class Kanban_Gravity_Forms {
 
 
 
-		foreach ( $saved[ $form_id ] as $field_id => $task_field ) {
+		foreach ( $saved as $field_id => $task_field ) {
 
 			// get the board id and move on
 			if ( $field_id == 'board' ) {
@@ -234,22 +287,27 @@ class Kanban_Gravity_Forms {
 	 */
 	static function populate_form_selects( $form ) {
 
-		$saved = Kanban_Option::get_option( self::$slug );
 
-		$form_id = $form[ 'id' ];
+		$form_id = $form['id'];
+
+		$saved = Kanban_Option::get_option( sprintf(
+			'%s-%d',
+			self::$slug,
+			$form_id
+		) );
 
 
-		if ( ! isset( $saved[ $form_id ] ) ) {
+		if ( empty($saved) ) {
 			return $form;
 		}
 
-		$board_id = $saved[ $form_id ][ 'board' ];
+		$board_id = $saved[ 'board' ];
 
 		$estimates = array();
 		$statuses  = array();
 		$users     = array();
 
-		foreach ( $saved[ $form_id ] as $field_id => $task_field ) {
+		foreach ( $saved as $field_id => $task_field ) {
 
 			if ( $field_id == 'board' ) {
 				continue;
@@ -411,6 +469,68 @@ class Kanban_Gravity_Forms {
 //	static function add_options_defaults( $defaults ) {
 //		return array_merge( $defaults, self::$options );
 //	}
+
+
+
+	static function do_updates () {
+		$saved = Kanban_Option::get_option(self::$slug);
+
+		if ( is_array($saved) && !empty($saved) ) {
+
+			foreach ( $saved as $form_id => $form_data ) {
+
+				if ( !isset($form_data['board']) || empty($form_data['board'] ) ) continue;
+
+				foreach ( $form_data as $field_id => $field_data ) {
+					if ( $field_id == 'board' ) continue;
+
+					if ( !isset($field_data['table_column']) || !isset(self::$task_fields[$field_data['table_column']]) ) {
+						unset($form_data[$field_id]);
+					}
+				}
+
+				Kanban_Option::update_option(
+					sprintf(
+						'%s-%d',
+						self::$slug,
+						$form_id
+					),
+					$form_data
+				);
+			}
+
+			if ( method_exists('Kanban_Option', 'delete_option') ) {
+				Kanban_Option::delete_option( self::$slug );
+			}
+		}
+	}
+
+
+
+	/**
+	 * Triggered on plugins_loaded priority 30
+	 * @link http://mac-blog.org.ua/wordpress-custom-database-table-example-full/
+	 */
+	static function check_for_updates() {
+
+		$prev_version = get_option( __CLASS__ . '_version' );
+
+		// See if we're out of sync.
+		if ( version_compare( self::$plugin_data[ 'Version' ], $prev_version ) === 0 ) {
+			return false;
+		}
+
+		do_action(
+			sprintf(
+				'%s_updates',
+				self::$slug
+			)
+		);
+
+		// Save version to avoid updates.
+		update_option( __CLASS__ . '_version', self::$plugin_data[ 'Version' ], true );
+	}
+
 
 
 

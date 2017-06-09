@@ -15,9 +15,9 @@
 		</div>
 	<?php endif ?>
 
-	<?php if ( isset($_GET['notice']) ) : ?>
+	<?php if ( isset($_GET['message']) ) : ?>
 	<div class="updated">
-		<p><?php echo $_GET['notice'] ?></p>
+		<p><?php echo $_GET['message'] ?></p>
 	</div>
 	<?php endif // notice ?>
 
@@ -42,13 +42,13 @@
 	<?php endif ?>
 
 
-	<form action="" method="post">
-
-		<?php wp_nonce_field( self::$slug, self::$slug . '-nonce' ) ?>
 
 		<?php $i = 0;
 		foreach ( $forms as $form ) : ?>
-			<div class="gform" id="gform-<?php echo $form[ 'id' ] ?>" style="display: none;">
+			<form action="" method="post" class="gform" id="gform-<?php echo $form[ 'id' ] ?>" style="display: none;">
+
+				<?php wp_nonce_field( self::$slug, self::$slug . '-nonce' ) ?>
+
 				<h2>
 					<small><?php echo __('Form', 'kanban') ?>:</small>
 					<br>
@@ -123,14 +123,15 @@
 						<?php $i++; endforeach; // $field ?>
 					</tbody>
 				</table>
-			</div><!-- form -->
+
+				<?php if ( class_exists( 'GFAPI' ) ) : ?>
+					<?php submit_button( __('Save your settings', 'kanban') ); ?>
+				<?php endif ?>
+
+			</form><!-- form -->
 		<?php endforeach; // $forms ?>
 
 
-		<?php if ( class_exists( 'GFAPI' ) ) : ?>
-		<?php submit_button( __('Save your settings', 'kanban') ); ?>
-		<?php endif ?>
-	</form>
 
 	<div style="display: none">
 		<?php foreach ( $boards as $board ) : ?>
@@ -201,16 +202,42 @@
 				var $select = $( this );
 				var form_id = $select.val();
 
+				if ( form_id == '' ) {
+					return false;
+				}
+
 				var $form_to_show = $( '#gform-' + form_id );
+
+
+				$( '.table_column', $form_to_show )
+					.trigger( 'change' )
+					.each( function () {
+						var $select = $( this );
+						var defaultValue = $select.attr( 'data-defaultValue' );
+						var $defaultValue = $( '[name="' + defaultValue + '"]' );
+
+						var val = $( this ).attr( 'data-value' );
+
+						if ( typeof val === 'undefined' || val == '' ) {
+							return;
+						}
+
+						$defaultValue.val( val );
+					} );
+
+
 				$( '.gform' ).not( $form_to_show ).hide();
 				$form_to_show.show();
+
+
+
 			}
 		);
 
 		$( '.table_column' ).on(
 			'change',
 			function () {
-				console.log('test');
+//				console.log('test');
 				var $select = $( this );
 				var defaultValue = $select.attr( 'data-defaultValue' );
 				var $defaultValue = $( '[name="' + defaultValue + '"]' );
@@ -219,7 +246,7 @@
 
 				var field = $select.val();
 				var board_id = $board_id.val();
-				console.log('#' + field + board_id);
+//				console.log('#' + field + board_id);
 				var $template = $( '#' + field + board_id );
 
 				if ( $template.length == 0 ) {
@@ -232,25 +259,15 @@
 			}
 		);
 
-		$( '.table_column' )
-		.trigger( 'change' )
-		.each( function () {
-			var $select = $( this );
-			var defaultValue = $select.attr( 'data-defaultValue' );
-			var $defaultValue = $( '[name="' + defaultValue + '"]' );
 
-			var val = $( this ).attr( 'data-value' );
-
-			if ( typeof val === 'undefined' || val == '' ) {
-				return;
-			}
-
-			$defaultValue.val( val );
-		} );
 	} );
 </script>
 
 <style>
+	.gform  {
+		display: none;
+	}
+	
 	#kanban_gravityforms table {
 		border-collapse: collapse;
 	}
