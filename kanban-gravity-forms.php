@@ -7,7 +7,7 @@ Description:		Use Gravity Forms forms to interact with your Kanban boards.
 Requires at least:	4.0
 Tested up to:		4.8.1
 Version:			0.0.4
-Release Date:		March 7, 2017
+Release Date:		June 9, 2017
 Author:				Gelform Inc
 Author URI:			http://gelwp.com
 License:			GPLv2 or later
