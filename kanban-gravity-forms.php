@@ -6,8 +6,8 @@ Plugin URI:			https://kanbanwp.com/addons/gravityforms/
 Description:		Use Gravity Forms forms to interact with your Kanban boards.
 Requires at least:	4.0
 Tested up to:		4.8.1
-Version:			0.0.4
-Release Date:		June 9, 2017
+Version:			0.0.5
+Release Date:		July 18, 2017
 Author:				Gelform Inc
 Author URI:			http://gelwp.com
 License:			GPLv2 or later
@@ -122,7 +122,7 @@ class Kanban_Gravity_Forms {
 			'Kanban Gravity Forms',
 			'Gravity Forms',
 			'manage_options',
-			'kanban_gravityforms',
+			self::$slug,
 			array( __CLASS__, 'add_admin_page' )
 		);
 	}
@@ -137,33 +137,83 @@ class Kanban_Gravity_Forms {
 			$forms = GFAPI::get_forms();
 		}
 
+
+		if ( isset($_GET['form']) ) {
+			$form = GFAPI::get_form($_GET['form']);
+		}
+
+
 		$boards = Kanban_Board::get_all();
 
-		foreach ( $boards as $board_id => &$board ) {
-			$board->projects  = Kanban_Project::get_all( $board_id );
-			$board->statuses  = Kanban_Status::get_all( $board_id );
-			$board->estimates = Kanban_Estimate::get_all( $board_id );
-			$board->users     = Kanban_User::get_allowed_users( $board_id );
+		if ( isset($_GET['board']) ) {
+			$board = Kanban_Board::get_current($_GET['board']);
 		}
 
 
 
-		$table_columns = self::$task_fields;
+
+		if ( isset($board) ) {
+			$board->projects  = Kanban_Project::get_all( $board->id );
+			$board->statuses  = Kanban_Status::get_all( $board->id );
+			$board->estimates = Kanban_Estimate::get_all( $board->id );
+
+			$users            = Kanban_User::get_allowed_users( $board->id );
+			$board->users     = array();
+
+			foreach ( $users as $user ) {
+				$board->users[ $user->ID ] = $user->long_name_email;
+			}
 
 
-		// Previously saved data.
-		$saved = array();
-		if ( ! empty( $forms ) ) {
-			foreach ( $forms as $form ) {
 
-				$saved[ $form['id'] ] = Kanban_Option::get_option( sprintf(
+			// Set default columns.
+			$board->table_columns = self::$task_fields;
+
+			// Get any additional fields.
+			$task_fields = Kanban_Option::get_option( 'task_fields', $board->id );
+
+			// If there are additional fields.
+			if ( is_array($task_fields) ) {
+
+				// Add fields as array.
+				$board->fields = array();
+
+				// Loop over fields to add them.
+				foreach ($task_fields as $field_id => &$field) {
+
+					switch ( $field['field_type'] ) {
+						case 'list_users' :
+
+							$field['options'] = $board->users;
+							break;
+					}
+
+					// Add additional fields to columns list.
+					$board->table_columns[$field_id] = $field['title'];
+
+					// If field is a select, add the options.
+					if ( isset($field['options']) ) {
+
+						$board->fields[$field_id] = $field['options'];
+					}
+
+				}
+			}
+
+			if ( isset($form) ) {
+				// Previously saved data.
+				$saved = Kanban_Option::get_option( sprintf(
 						'%s-%d',
 						self::$slug,
 						$form['id']
 					)
 				);
 			}
+
 		}
+
+
+
 
 		include plugin_dir_path( __FILE__ ) . 'templates/admin-page.php';
 	}
@@ -181,30 +231,46 @@ class Kanban_Gravity_Forms {
 		}
 
 
-		foreach ( $_POST[ 'forms' ] as $form_id => $form ) {
 
-			$form_data = array();
-
-			foreach ( $form as $field_id => $field_data ) {
-				if ( $field_id == 'board' ) {
-					$form_data['board'] = intval( $field_data );
-					continue;
-				}
-
-				if ( !isset($field_data['table_column']) || !isset(self::$task_fields[$field_data['table_column']]) ) continue;
-
-				$form_data[$field_id] = $field_data;
-			}
-
-			Kanban_Option::update_option(
-				sprintf(
-					'%s-%d',
-					self::$slug,
-					$form_id
-				),
-				$form_data
-			);
+		if ( class_exists( 'GFAPI' ) ) {
+			$form = GFAPI::get_form($_POST['form']);
 		}
+
+		if ( !$form ) {
+			wp_redirect(
+				add_query_arg(
+					array(
+						'message' => __( 'Form not found', 'kanban' )
+					),
+					sanitize_text_field( wp_unslash( $_POST[ '_wp_http_referer' ] ) )
+				)
+			);
+			exit;
+		}
+
+
+
+
+		$form_data = array();
+		$form_data['board'] = $_POST['board'];
+
+		foreach ( $form['fields'] as $field ) {
+			if ( !isset($_POST[$field->id]) ) continue;
+
+			if ( empty($_POST[$field->id]['table_column']) ) continue;
+
+			$form_data[$field->id] = $_POST[$field->id];
+		}
+
+
+		Kanban_Option::update_option(
+			sprintf(
+				'%s-%d',
+				self::$slug,
+				$form['id']
+			),
+			$form_data
+		);
 
 
 
@@ -252,6 +318,9 @@ class Kanban_Gravity_Forms {
 		$task_data[ 'board_id' ]         = $board_id;
 
 
+		$task_fields = Kanban_Option::get_option( 'task_fields', $board_id );
+
+		$taskmeta_data = array();
 
 		foreach ( $saved as $field_id => $task_field ) {
 
@@ -260,7 +329,26 @@ class Kanban_Gravity_Forms {
 				continue;
 			}
 
-			$task_data[ $task_field[ 'table_column' ] ] = $entry[ $field_id ];
+			// Add task fields to task.
+			if ( isset($task_data[ $task_field[ 'table_column' ] ]) ) {
+				$task_data[ $task_field['table_column'] ] = $entry[ $field_id ];
+			}
+			else {
+				$field = $task_fields[$task_field['table_column']];
+				switch ( $field['field_type'] ) {
+					case 'date' :
+
+						// Update to be javascript milliseconds.
+						$dt = new DateTime($entry[ $field_id ]);
+						$entry[ $field_id ] = $dt->format( 'U' ) . '000';
+
+						break;
+				}
+
+
+				// Otherwise, it must be a custom field.
+				$taskmeta_data[$task_field['table_column']] = $entry[ $field_id ];
+			}
 		}
 
 		//Set to the first status if empty.
@@ -273,6 +361,13 @@ class Kanban_Gravity_Forms {
 		}
 
 		Kanban_Task::replace( $task_data );
+
+		global $wpdb;
+		$task_id = $wpdb->insert_id;
+
+		foreach ( $taskmeta_data as $meta_key => $meta_value ) {
+			Kanban_Taskmeta::update( $task_id, $meta_key, $meta_value );
+		}
 	}
 
 
@@ -305,7 +400,31 @@ class Kanban_Gravity_Forms {
 
 		$estimates = array();
 		$statuses  = array();
+		$users_arr = Kanban_User::get_allowed_users( $board_id );
 		$users     = array();
+		foreach ( $users_arr as $user ) {
+			$users[ $user->ID ] = $user->long_name_email;
+		}
+
+		// Get any additional fields.
+		$task_fields = Kanban_Option::get_option( 'task_fields', $board_id );
+
+		// If there are additional fields.
+		if ( is_array($task_fields) ) {
+
+			// Loop over fields to add them.
+			foreach ($task_fields as $field_id => &$field) {
+
+				switch ( $field['field_type'] ) {
+					case 'list_users' :
+
+						$field['options'] = $users;
+						break;
+				}
+			}
+		}
+
+
 
 		foreach ( $saved as $field_id => $task_field ) {
 
@@ -317,24 +436,25 @@ class Kanban_Gravity_Forms {
 				$task_field[ 'defaultValue' ] = null;
 			}
 
-			switch ( $task_field[ 'table_column' ] ) {
-				case 'estimate_id':
+			foreach ( $form[ 'fields' ] as &$field ) {
+				if ( $field->id != $field_id ) {
+					continue;
+				}
 
-					if ( empty( $estimates ) ) {
-						$estimates = Kanban_Estimate::get_all( $board_id );
-					}
+				if ( $field->type == 'hidden' || $field->type == 'text' || $field->type == 'textarea' ) {
+					$field->defaultValue = $task_field[ 'defaultValue' ];
+					continue;
+				}
 
-					foreach ( $form[ 'fields' ] as &$field ) {
-						if ( $field->id != $field_id ) {
-							continue;
+
+				switch ( $task_field[ 'table_column' ] ) {
+					case 'estimate_id':
+
+						if ( empty( $estimates ) ) {
+							$estimates = Kanban_Estimate::get_all( $board_id );
 						}
 
 						switch ( $field->type ) {
-							case 'hidden':
-								$field->defaultValue = $task_field[ 'defaultValue' ];
-
-								break;
-
 							case 'select':
 
 								$choices = array();
@@ -347,26 +467,18 @@ class Kanban_Gravity_Forms {
 								break;
 
 						}
-					}
 
-					break;
 
-				case 'status_id':
+						break;
 
-					if ( empty( $statuses ) ) {
-						$statuses = Kanban_Status::get_all( $board_id );
-					}
+					case 'status_id':
 
-					foreach ( $form[ 'fields' ] as &$field ) {
-						if ( $field->id != $field_id ) {
-							continue;
+						if ( empty( $statuses ) ) {
+							$statuses = Kanban_Status::get_all( $board_id );
 						}
 
-						switch ( $field->type ) {
-							case 'hidden':
-								$field->defaultValue = $task_field[ 'defaultValue' ];
 
-								break;
+						switch ( $field->type ) {
 
 							case 'select':
 
@@ -380,26 +492,18 @@ class Kanban_Gravity_Forms {
 								break;
 
 						}
-					}
 
-					break;
 
-				case 'project_id':
+						break;
 
-					if ( empty( $projects ) ) {
-						$projects = Kanban_Project::get_all( $board_id );
-					}
+					case 'project_id':
 
-					foreach ( $form[ 'fields' ] as &$field ) {
-						if ( $field->id != $field_id ) {
-							continue;
+						if ( empty( $projects ) ) {
+							$projects = Kanban_Project::get_all( $board_id );
 						}
 
-						switch ( $field->type ) {
-							case 'hidden':
-								$field->defaultValue = $task_field[ 'defaultValue' ];
 
-								break;
+						switch ( $field->type ) {
 
 							case 'select':
 
@@ -413,33 +517,21 @@ class Kanban_Gravity_Forms {
 								break;
 
 						}
-					}
 
-					break;
 
-				case 'user_id_author':
-				case 'user_id_assigned':
+						break;
 
-					if ( empty( $users ) ) {
-						$users = Kanban_User::get_allowed_users( $board_id );
-					}
+					case 'user_id_author':
+					case 'user_id_assigned':
 
-					foreach ( $form[ 'fields' ] as &$field ) {
-						if ( $field->id != $field_id ) {
-							continue;
-						}
 
 						switch ( $field->type ) {
-							case 'hidden':
-								$field->defaultValue = $task_field[ 'defaultValue' ];
-
-								break;
 
 							case 'select':
 
 								$choices = array();
-								foreach ( $users as $user ) {
-									$choices[] = array( 'text' => $user->long_name_email, 'value' => $user->ID );
+								foreach ( $users as $user_id => $long_name_email ) {
+									$choices[] = array( 'text' => $long_name_email, 'value' => $user_id );
 								}
 
 								$field->choices = $choices;
@@ -447,14 +539,62 @@ class Kanban_Gravity_Forms {
 								break;
 
 						}
-					}
 
-					break;
-			}
-		}
+
+						break;
+
+					default :
+						if ( ! isset( $task_fields[ $task_field['table_column'] ] ) ) {
+							continue;
+						}
+
+
+						switch ( $field->type ) {
+
+							case 'select':
+
+								if ( isset( $task_fields[ $task_field['table_column'] ]['options'] ) ) {
+									$choices = array();
+									foreach ( $task_fields[ $task_field['table_column'] ]['options'] as $value => $text ) {
+
+										if ( empty( $text ) ) {
+											continue;
+										}
+
+										if ( self::isAssoc( $task_fields[ $task_field['table_column'] ]['options'] ) ) {
+											$choices[] = array( 'text'  => esc_html( stripslashes( $text ) ),
+											                    'value' => $value
+											);
+										} else {
+											$choices[] = array( 'text'  => esc_html( stripslashes( $text ) ),
+											                    'value' => $text
+											);
+										}
+
+									}
+
+									$field->choices = $choices;
+								}
+
+								break;
+
+						}
+
+				} // switch ( $task_field[ 'table_column' ]
+			} //  $form[ 'fields' ]
+		} // foreach $saved
 
 		return $form;
 	}
+
+
+	// https://stackoverflow.com/a/173479/38241
+	static function isAssoc(array $arr)
+	{
+		if (array() === $arr) return false;
+		return array_keys($arr) !== range(0, count($arr) - 1);
+	}
+
 
 
 

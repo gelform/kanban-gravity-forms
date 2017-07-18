@@ -4,8 +4,8 @@ Plugin URI:			https://kanbanwp.com/addons/gravity-forms/
 Description:		Create tasks using Gravity Forms forms.
 Requires at least:	4.0
 Tested up to:		4.8.1
-Version:			0.0.4
-Release Date:		June 9, 2017
+Version:			0.0.5
+Release Date:		July 18, 2017
 Stable tag:         trunk
 Author:				Gelform Inc
 Author URI:			http://gelwp.com
