@@ -360,7 +360,12 @@ class Kanban_Gravity_Forms {
 			$task_data[ 'status_id' ] = $status->id;
 		}
 
-		Kanban_Task::replace( $task_data );
+		Kanban_Task::replace(
+			apply_filters(
+				'kanban_gravity_forms_on_post_submission_task_save',
+				$task_data
+			)
+		);
 
 		global $wpdb;
 		$task_id = $wpdb->insert_id;
