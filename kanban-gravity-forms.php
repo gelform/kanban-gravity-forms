@@ -1,15 +1,15 @@
 <?php
 /*
-Contributors:		gelform
+Contributors:		gelform, kkoppenhaver
 Plugin Name:		Kanban + Gravity Forms
-Plugin URI:			https://kanbanwp.com/addons/gravityforms/
+Plugin URI:			https://kanbanwp.com
 Description:		Use Gravity Forms forms to interact with your Kanban boards.
 Requires at least:	4.0
-Tested up to:		4.8.1
-Version:			0.0.6
+Tested up to:		5.7.1
+Version:			0.0.7
 Release Date:		August 15, 2017
-Author:				Gelform Inc
-Author URI:			http://gelwp.com
+Author:				Kanban for WordPress
+Author URI:			https://kanbanwp.com
 License:			GPLv2 or later
 License URI:		http://www.gnu.org/licenses/gpl-2.0.html
 Text Domain:		kanban
