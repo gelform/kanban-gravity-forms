@@ -1,12 +1,4 @@
 1046.txt
-banner-1544x500-text.png
-banner-1544x500.png
-banner-1880x609-text.png
-banner-1880x609.png
-banner-772x250-text.png
-banner-772x250.png
-icon-128x128.png
-icon-256x256.png
 kanban-gravity-forms/.svn/entries
 kanban-gravity-forms/.svn/format
 kanban-gravity-forms/.svn/wc.db
@@ -27,7 +19,6 @@ kanban-gravity-forms/.svn/pristine/ad/ad178f0a25979173a64e0ac524682fbc56a464f9.s
 kanban-gravity-forms/.svn/pristine/bf/bf07428fb3110453a6fdb8da6f764b52eab6893c.svn-base
 kanban-gravity-forms/.svn/pristine/e4/e4e7a9c3c8209c16bf56d2b9e674f62f1ecf0bb8.svn-base
 kanban-gravity-forms/.svn/pristine/f8/f87d75abbf7da86f5dd27ef294dd47061b6dec98.svn-base
-kanban-gravity-forms/assets/screenshot-1.png
 kanban-gravity-forms/tags/0.0.1/kanban-gravity-forms.php
 kanban-gravity-forms/tags/0.0.1/readme.txt
 kanban-gravity-forms/tags/0.0.1/templates/admin-page.php
